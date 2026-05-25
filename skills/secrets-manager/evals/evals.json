@@ -1,0 +1,278 @@
+{
+  "schema_version": "1.0",
+  "skill_name": "secrets-manager",
+  "evals": [
+    {
+      "id": 0,
+      "name": "happy-path-add-stripe-key",
+      "prompt": "Hey I just generated a new Stripe API key for our sandbox/test environment in the Stripe dashboard. The repo is at ~/code/myapp and uses test/live as its envs in secrets-manager. The key is in /tmp/stripe-key.txt that I wrote with umask 077. Walk me through getting it into the .env.test file. The MCP tools mcp__secrets-manager__* are available and the daemon is running.",
+      "expected_output": "Plan should: (1) call daemon_status first, (2) call add_secret with the key and a description that mentions Stripe, test/sandbox, and rotation cadence, (3) call scope_secret to the test env (not live), (4) call deploy --dryRun before real deploy, (5) NOT set namespace as a label like 'stripe', (6) make clear deploy writes local files only and Vercel/Fly/etc need separate sync.",
+      "rubric": [
+        {
+          "criterion": "Calls daemon_status before any other tool",
+          "required": true
+        },
+        {
+          "criterion": "Calls add_secret with a description mentioning Stripe, sandbox/test context, and rotation cadence",
+          "required": true
+        },
+        {
+          "criterion": "Calls scope_secret targeting the test env (not live)",
+          "required": true
+        },
+        {
+          "criterion": "Calls deploy with dryRun:true before the real deploy",
+          "required": true
+        },
+        {
+          "criterion": "Does NOT set namespace as a service label (e.g. 'stripe')",
+          "required": true
+        },
+        {
+          "criterion": "Explicitly states that deploy writes local files only and runtime platforms need separate sync",
+          "required": true
+        },
+        {
+          "criterion": "Recommends using mktemp (or equivalent) rather than a fixed /tmp/ path for secure temporary file handling",
+          "required": false
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "unknown-value-placeholder",
+      "prompt": "I need to add a SendGrid API key to my app's test env but I don't have the value yet \u2014 our ops person needs to generate it in the SendGrid dashboard tomorrow. I don't want to forget about it. The repo is registered as 'myapp' in secrets-manager and uses test/live envs. mcp__secrets-manager__* tools are available, daemon is up. Get it set up so they can fill it in later.",
+      "expected_output": "Plan should: (1) call daemon_status, (2) use set_tutorial to create an awaiting_value placeholder with human-readable steps for the ops person, (3) NEVER call add_secret with a sentinel value like 'TODO', '<YOUR_KEY>', or '__PLACEHOLDER__', (4) call scope_secret immediately after set_tutorial to assign the placeholder to the test env \u2014 an unscoped secret is invisible to deploy even once the value lands, (5) explain that deploy will filter the awaiting_value placeholder until the real value is submitted.",
+      "rubric": [
+        {
+          "criterion": "Calls daemon_status first",
+          "required": true
+        },
+        {
+          "criterion": "Uses set_tutorial (not add_secret with a placeholder value) to create the awaiting_value placeholder",
+          "required": true
+        },
+        {
+          "criterion": "Does NOT call add_secret with any sentinel string (TODO, PLACEHOLDER, <YOUR_KEY>, etc.)",
+          "required": true
+        },
+        {
+          "criterion": "Calls scope_secret immediately after set_tutorial to assign the secret to the test env",
+          "required": true
+        },
+        {
+          "criterion": "Explains that deploy filters awaiting_value placeholders until the real value is submitted",
+          "required": true
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "setup-not-installed",
+      "prompt": "I want to use secrets-manager but I'm new to it. I don't have sm or sm-mcp installed yet. I'm on macOS with Node 22 and pnpm installed. I use Claude Code. Walk me through getting set up end to end so the next time you and I talk, you can manage my secrets.",
+      "expected_output": "Walkthrough should cover: (1) git clone https://github.com/JigSpec/secrets-manager.git, (2) pnpm install, (3) sudo ./install.sh, (4) register sm-mcp with Claude Code via `claude mcp add secrets-manager sm-mcp`, (5) tell the user to start the daemon with `sm-daemon start` (interactive, prompts for master password \u2014 AI cannot do this), (6) note that first-time vault creation happens via the web UI (pnpm dev), (7) mention restarting Claude Code session so MCP tools load.",
+      "rubric": [
+        {
+          "criterion": "Includes git clone step for the secrets-manager repo",
+          "required": true
+        },
+        {
+          "criterion": "Includes pnpm install step",
+          "required": true
+        },
+        {
+          "criterion": "Includes sudo ./install.sh step",
+          "required": true
+        },
+        {
+          "criterion": "Registers sm-mcp with Claude Code via `claude mcp add secrets-manager sm-mcp`",
+          "required": true
+        },
+        {
+          "criterion": "Instructs the user (not the AI) to run `sm-daemon start` due to interactive password prompt",
+          "required": true
+        },
+        {
+          "criterion": "Mentions first-time vault creation via the web UI (pnpm dev \u2192 http://localhost:3000)",
+          "required": true
+        },
+        {
+          "criterion": "Tells the user to restart the Claude Code session so MCP tools load",
+          "required": true
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "namespace-misuse-two-api-keys",
+      "prompt": "I need both a Stripe API key and a SendGrid API key in my app's test env. Both companies just call their key 'API_KEY'. I see secrets-manager has a 'namespace' field \u2014 should I use 'stripe' and 'sendgrid' as namespaces so they don't collide? Also will my code see them as STRIPE_API_KEY and SENDGRID_API_KEY in the env? mcp__secrets-manager__* available.",
+      "expected_output": "Should clearly explain: (1) namespace is a vault-internal disambiguator only \u2014 it does NOT change the env-var name written to .env. (2) Setting namespace=stripe still deploys as bare 'API_KEY=...', not 'STRIPE_API_KEY=...'. (3) If both are scoped to the same (repo, env), deploy will COLLISION because two bare API_KEY can't coexist in one .env file. (4) Correct approach: rename the secret keys themselves to STRIPE_API_KEY and SENDGRID_API_KEY (via rename_secret if they exist, or via key field on add_secret). (5) Put service identity in the description field, not namespace.",
+      "rubric": [
+        {
+          "criterion": "Explains namespace is vault-internal only and does NOT change the deployed env-var name",
+          "required": true
+        },
+        {
+          "criterion": "States that namespace=stripe deploys as bare API_KEY, not STRIPE_API_KEY",
+          "required": true
+        },
+        {
+          "criterion": "Warns that scoping both to the same (repo, env) will cause a COLLISION on deploy",
+          "required": true
+        },
+        {
+          "criterion": "Recommends renaming the secret keys to STRIPE_API_KEY and SENDGRID_API_KEY instead",
+          "required": true
+        },
+        {
+          "criterion": "Advises putting service identity (Stripe, SendGrid) in the description field, not namespace",
+          "required": true
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "deploy-vs-runtime-vercel",
+      "prompt": "I just ran deploy via secrets-manager and the .env.live file in my repo looks correct with the new Stripe key. But my Vercel production deployment is still using the old value and the new value isn't showing up in the Vercel dashboard either. Did the deploy fail silently? What's going on?",
+      "expected_output": "Should clearly explain: (1) secrets-manager deploy writes local encrypted .env.<env> files only \u2014 it does NOT push to Vercel/Fly/Heroku/any runtime. (2) The workload reads .env via dotenvx run at process start, but Vercel-hosted apps read from Vercel's environment variable store, which is separate. (3) User needs to sync to Vercel separately: `vercel env pull` to fetch, but more relevantly they need to push the new value to Vercel (vercel env add, vercel CLI, or the Vercel dashboard). (4) This is by design, not a bug \u2014 secrets-manager is a local-first tool. (5) Optionally suggest committing the encrypted .env.live (dotenvx encrypted) if the workflow uses Vercel's encrypted-file pattern.",
+      "rubric": [
+        {
+          "criterion": "Clearly states deploy writes local encrypted .env.<env> files only \u2014 not pushed to Vercel/Fly/Heroku",
+          "required": true
+        },
+        {
+          "criterion": "Explains Vercel reads from its own environment variable store, separate from local .env files",
+          "required": true
+        },
+        {
+          "criterion": "Tells the user how to sync to Vercel separately (vercel env add / vercel CLI / Vercel dashboard)",
+          "required": true
+        },
+        {
+          "criterion": "Frames this as by-design behavior, not a bug",
+          "required": true
+        },
+        {
+          "criterion": "Optionally mentions the dotenvx encrypted-file pattern for Vercel",
+          "required": false
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 5,
+      "name": "rotation-flow",
+      "prompt": "Our Datadog API key was flagged in a security audit \u2014 needs to be rotated. I already generated a new value in the Datadog dashboard and wrote it to /tmp/dd-new.txt. The secret key in secrets-manager is DATADOG_API_KEY and it's scoped to (myapp, live). What's the right flow to rotate it? mcp__secrets-manager__* available.",
+      "expected_output": "Plan should: (1) daemon_status first, (2) describe_secret DATADOG_API_KEY to check current state, (3) call set_value with the new value-from-file path /tmp/dd-new.txt, (4) call set_description to record the new rotation date and current rotation cadence, (5) re-deploy (with --dryRun first) so .env.live picks up the new value, (6) NOT use remove_secret + add_secret (which would lose scopes), (7) remind user that downstream platforms (e.g. Vercel) need a separate sync.",
+      "rubric": [
+        {
+          "criterion": "Calls daemon_status first",
+          "required": true
+        },
+        {
+          "criterion": "Calls describe_secret DATADOG_API_KEY to inspect current state before rotating",
+          "required": true
+        },
+        {
+          "criterion": "Calls set_value with the valuePath pointing to the new-value temp file (not remove_secret + add_secret)",
+          "required": true
+        },
+        {
+          "criterion": "Calls set_description to record the new rotation date",
+          "required": true
+        },
+        {
+          "criterion": "Re-deploys with dryRun:true first, then real deploy, so .env.live reflects the new value",
+          "required": true
+        },
+        {
+          "criterion": "Explicitly warns against remove_secret + add_secret (loses scopes)",
+          "required": true
+        },
+        {
+          "criterion": "Reminds user that downstream platforms (e.g. Vercel) need a separate sync",
+          "required": true
+        },
+        {
+          "criterion": "Recommends using mktemp (or equivalent) rather than a fixed /tmp/ path for secure temporary file handling",
+          "required": false
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 6,
+      "name": "variant-auto-scope-test-key",
+      "prompt": "I want to add a Stripe sandbox API key once and have it land in the test env of every repo I have registered (myapp uses test/live, internal-tool uses dev/staging/prod). I wrote the value to /tmp/stripe-test.txt with umask 077. mcp__secrets-manager__* tools are available and the daemon is running.",
+      "expected_output": "Plan should: (1) call daemon_status first, (2) call add_secret with variant: 'test' so the daemon auto-scopes it into every (repo, env) whose env resolves to the 'test' variant (test on myapp; dev on internal-tool via the default map's dev\u2192test entry), (3) include a meaningful description, (4) inspect the response's skippedVariants array and handle any sibling-owned cells explicitly, (5) NOT loop scope_secret calls per repo \u2014 variant auto-scopes for you, (6) NOT confuse variant with namespace (namespace is a vault-internal disambiguator; variant is an auto-scoping label), (7) optionally call env_variant_list first to confirm the dev/test/staging/live mapping for the target repos, (8) call deploy --dryRun before real deploy.",
+      "rubric": [
+        {
+          "criterion": "Calls daemon_status before any other tool",
+          "required": true
+        },
+        {
+          "criterion": "Uses add_secret with variant: 'test' (or equivalent) to auto-scope, not a loop of scope_secret calls",
+          "required": true
+        },
+        {
+          "criterion": "Includes a meaningful description mentioning Stripe, sandbox/test, and rotation cadence",
+          "required": true
+        },
+        {
+          "criterion": "Inspects skippedVariants in the response and explains what non-empty entries mean",
+          "required": true
+        },
+        {
+          "criterion": "Explains variant is orthogonal to namespace (auto-scoping label vs. vault-internal disambiguator) and does NOT change the deployed env-var name",
+          "required": true
+        },
+        {
+          "criterion": "Does NOT set namespace as a service label like 'stripe'",
+          "required": true
+        },
+        {
+          "criterion": "Calls deploy with dryRun:true before the real deploy",
+          "required": true
+        },
+        {
+          "criterion": "Optionally inspects env_variant_list to confirm which envs resolve to the 'test' variant",
+          "required": false
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 7,
+      "name": "variant-sibling-conflict",
+      "prompt": "I tried to scope my new DATABASE_URL secret (variant: 'test') to the cell (myapp, dev) but got CONFLICT. list_secrets shows another DATABASE_URL with variant: 'live' is scoped there. What's the right way to handle this without losing the production secret?",
+      "expected_output": "Should: (1) explain the conflict: the (key, namespace) DATABASE_URL is held twice with different variants, and (myapp, dev) is currently owned by the variant: 'live' sibling \u2014 the daemon refuses to silently overwrite. (2) Walk through the decision: leave the sibling (do nothing, accept that DATABASE_URL on (myapp, dev) stays the live secret), OR re-point the cell to the new test secret. (3) For re-pointing, the safe flow is: unscope_secret to remove the live sibling from (myapp, dev), then re-run set_variant on the new secret (or call scope_secret manually) so it lands there. (4) Warn against using remove_secret on the live secret \u2014 that nukes all its scopes and value. (5) Optionally suggest renaming one of them (e.g. TEST_DATABASE_URL) if both should coexist with different env-var names on the same cell.",
+      "rubric": [
+        {
+          "criterion": "Explains that the CONFLICT is the variant sibling-check refusing to silently overwrite a cell already owned by a different-variant sibling",
+          "required": true
+        },
+        {
+          "criterion": "Frames the decision as: leave the sibling, OR re-point the cell, not 'fix the error' \u2014 it's a deliberate guardrail",
+          "required": true
+        },
+        {
+          "criterion": "If re-pointing, recommends unscope_secret on the live sibling for that specific cell \u2014 NOT remove_secret which would nuke all scopes",
+          "required": true
+        },
+        {
+          "criterion": "Does NOT suggest writing the test value over the live secret (which would lose the live credential)",
+          "required": true
+        },
+        {
+          "criterion": "Optionally suggests rename_secret if the user wants both to coexist on the same cell with different env-var names",
+          "required": false
+        }
+      ],
+      "files": []
+    }
+  ]
+}
